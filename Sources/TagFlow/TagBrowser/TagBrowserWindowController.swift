@@ -23,9 +23,10 @@ final class TagBrowserWindowController: NSWindowController {
         super.init(window: window)
     }
 
-    // Must not crash — macOS state restoration can call this via Obj-C runtime.
-    // super.init(coder:) gracefully returns nil when no NIB is configured.
+    // tagStore must be initialized before super.init (Swift phase-1 rule).
+    // isRestorable = false should prevent this path; it is here only as a safe fallback.
     required init?(coder: NSCoder) {
+        self.tagStore = TagStore.shared
         super.init(coder: coder)
     }
 }

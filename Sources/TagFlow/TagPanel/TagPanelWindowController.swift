@@ -23,8 +23,14 @@ final class TagPanelWindowController: NSWindowController {
         super.init(window: panelWindow)
     }
 
-    // Must not crash — macOS state restoration can call this via Obj-C runtime.
+    // All stored properties must be initialized before super.init (Swift phase-1 rule).
+    // isRestorable = false should prevent this path; it is here only as a safe fallback.
     required init?(coder: NSCoder) {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return nil }
+        self.edge = .leading
+        self.screen = screen
+        self.tagStore = TagStore.shared
+        self.isVisible = false
         super.init(coder: coder)
     }
 
