@@ -26,6 +26,7 @@ final class EdgeTriggerWindow: NSWindow {
         hasShadow = false
         ignoresMouseEvents = true
         isReleasedWhenClosed = false
+        isRestorable = false  // never restore edge trigger windows across sessions
         // Must appear on all spaces including fullscreen apps
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         // Above all normal windows; .screenSaver ensures visibility over fullscreen apps

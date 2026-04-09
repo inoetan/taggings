@@ -19,11 +19,14 @@ final class TagPanelWindowController: NSWindowController {
         // Use static helper — instance methods cannot be called before super.init
         let initFrame = Self.offscreenRect(for: edge, screen: screen)
         let panelWindow = TagPanelWindow(contentRect: initFrame)
+        panelWindow.isRestorable = false  // prevent macOS from calling init?(coder:) on restart
         super.init(window: panelWindow)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
+    // Must not crash — macOS state restoration can call this via Obj-C runtime.
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 
     // MARK: - Public
 

@@ -12,8 +12,11 @@ final class EdgeTriggerView: NSView {
         registerForDraggedTypes([.fileURL])
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
+    required init?(coder: NSCoder) {
+        self.edge = .leading  // fallback; this path is never used (no NIB)
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
 
     // MARK: - NSDraggingDestination
 

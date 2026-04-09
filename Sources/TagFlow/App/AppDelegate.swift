@@ -4,10 +4,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var edgeTriggerManager: EdgeTriggerManager?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Run as an accessory (no Dock icon, doesn't steal focus)
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Set as early as possible — before SwiftUI creates any window infrastructure
         NSApp.setActivationPolicy(.accessory)
+    }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
         let tagStore = TagStore.shared
         statusBarController = StatusBarController(tagStore: tagStore)
 
