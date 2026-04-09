@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 /// Wraps NSMetadataQuery to search files by Finder tag via Spotlight.
-final class MetadataQueryService: NSObject {
+final class MetadataQueryService: NSObject, ObservableObject {
     private var query: NSMetadataQuery?
     private var completionHandler: (([URL]) -> Void)?
 

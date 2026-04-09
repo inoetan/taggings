@@ -4,11 +4,11 @@ import AppKit
 /// Normally click-through; becomes interactive when a drag approaches the edge.
 final class EdgeTriggerWindow: NSWindow {
     let edge: ScreenEdge
-    let screen: NSScreen
+    let targetScreen: NSScreen  // renamed: NSWindow already has `var screen: NSScreen?`
 
     init(edge: ScreenEdge, screen: NSScreen) {
         self.edge = edge
-        self.screen = screen
+        self.targetScreen = screen
         let frame = EdgeTriggerWindow.edgeRect(for: edge, screen: screen)
         super.init(
             contentRect: frame,
