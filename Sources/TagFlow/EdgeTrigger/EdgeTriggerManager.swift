@@ -81,9 +81,12 @@ final class EdgeTriggerManager {
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
             self?.handleGlobalDrag(at: NSEvent.mouseLocation)
         }
-        // Re-arm: when mouse button is released, disable all edge windows
+        // On mouse-up: disable hot zones and close any open panel.
+        // This handles cancellations that happen while the drag is over the tag panel
+        // (where draggingEnded on EdgeTriggerView is NOT called).
         mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
             self?.disableAllEdgeWindows()
+            self?.slideOutAllPanels()
         }
     }
 
@@ -114,5 +117,9 @@ final class EdgeTriggerManager {
 
     private func disableAllEdgeWindows() {
         edgeWindows.values.forEach { $0.ignoresMouseEvents = true }
+    }
+
+    private func slideOutAllPanels() {
+        panelControllers.values.forEach { $0.slideOut() }
     }
 }

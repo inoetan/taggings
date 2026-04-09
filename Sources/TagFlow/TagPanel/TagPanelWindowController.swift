@@ -8,7 +8,6 @@ final class TagPanelWindowController: NSWindowController {
     private let tagStore: TagStore
     private weak var coordinator: DragCoordinator?
 
-    private var currentURLs: [URL] = []
     private var isVisible = false
 
     init(edge: ScreenEdge, screen: NSScreen, tagStore: TagStore, coordinator: DragCoordinator) {
@@ -17,9 +16,10 @@ final class TagPanelWindowController: NSWindowController {
         self.tagStore = tagStore
         self.coordinator = coordinator
 
-        let panelWindow = TagPanelWindow(contentRect: offscreenRect(for: edge, screen: screen))
+        // Use static helper — instance methods cannot be called before super.init
+        let initFrame = Self.offscreenRect(for: edge, screen: screen)
+        let panelWindow = TagPanelWindow(contentRect: initFrame)
         super.init(window: panelWindow)
-        // Content is set lazily in slideIn to capture the latest URL list
     }
 
     @available(*, unavailable)
@@ -29,24 +29,22 @@ final class TagPanelWindowController: NSWindowController {
 
     func slideIn(with urls: [URL]) {
         guard !isVisible else { return }
-        currentURLs = urls
         isVisible = true
 
         guard let coordinator = coordinator else { return }
 
-        // Rebuild SwiftUI content with current URLs
         let view = TagPanelView(
             edge: edge,
             draggedURLs: urls,
             tagStore: tagStore,
             coordinator: coordinator
         )
-        let hostingController = NSHostingController(rootView: view)
-        hostingController.view.frame = CGRect(origin: .zero, size: panelSize())
-        window?.contentViewController = hostingController
+        let hosting = NSHostingController(rootView: view)
+        hosting.view.frame = CGRect(origin: .zero, size: Self.panelSize(edge: edge, screen: screen))
+        window?.contentViewController = hosting
 
-        let targetFrame = onscreenRect(for: edge, screen: screen)
-        window?.setFrame(offscreenRect(for: edge, screen: screen), display: false)
+        let targetFrame = Self.onscreenRect(for: edge, screen: screen)
+        window?.setFrame(Self.offscreenRect(for: edge, screen: screen), display: false)
         window?.orderFrontRegardless()
 
         NSAnimationContext.runAnimationGroup { ctx in
@@ -60,7 +58,7 @@ final class TagPanelWindowController: NSWindowController {
         guard isVisible else { return }
         isVisible = false
 
-        let targetFrame = offscreenRect(for: edge, screen: screen)
+        let targetFrame = Self.offscreenRect(for: edge, screen: screen)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -70,21 +68,20 @@ final class TagPanelWindowController: NSWindowController {
         }
     }
 
-    // MARK: - Frame Calculations
+    // MARK: - Frame Calculations (static to avoid pre-super.init restrictions)
 
-    private func panelSize() -> CGSize {
+    static func panelSize(edge: ScreenEdge, screen: NSScreen) -> CGSize {
         let panelWidth = AppSettings.shared.tagPanelWidth
-        let screenHeight = screen.visibleFrame.height
         switch edge {
         case .leading, .trailing:
-            return CGSize(width: panelWidth, height: min(screenHeight, 500))
+            return CGSize(width: panelWidth, height: min(screen.visibleFrame.height, 500))
         case .top, .bottom:
             return CGSize(width: min(screen.frame.width, 400), height: panelWidth)
         }
     }
 
-    private func onscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
-        let size = panelSize()
+    static func onscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
+        let size = panelSize(edge: edge, screen: screen)
         let sf = screen.frame
         let vf = screen.visibleFrame
         switch edge {
@@ -99,7 +96,7 @@ final class TagPanelWindowController: NSWindowController {
         }
     }
 
-    private func offscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
+    static func offscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
         var rect = onscreenRect(for: edge, screen: screen)
         switch edge {
         case .leading:   rect.origin.x -= rect.width

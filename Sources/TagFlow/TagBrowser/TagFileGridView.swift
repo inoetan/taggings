@@ -15,10 +15,10 @@ struct TagFileGridView: View {
                 ProgressView("検索中…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if files.isEmpty {
-                ContentUnavailableView(
-                    "ファイルがありません",
-                    systemImage: "tag.slash",
-                    description: Text("「\(tag.name)」タグが付いたファイルがありません")
+                EmptyStateView(
+                    icon: "tag.slash",
+                    title: "ファイルがありません",
+                    message: "「\(tag.name)」タグが付いたファイルがありません"
                 )
             } else {
                 ScrollView {
@@ -44,7 +44,8 @@ struct TagFileGridView: View {
         }
         .onAppear { startQuery() }
         .onDisappear { queryService.stopQuery() }
-        .onChange(of: tag.id) { startQuery() }
+        // macOS 13 compatible onChange (closure receives new value)
+        .onChange(of: tag.id) { _ in startQuery() }
     }
 
     private func startQuery() {
@@ -87,9 +88,30 @@ private struct FileCell: View {
             Button("Finderで表示") {
                 NSWorkspace.shared.activateFileViewerSelecting([file.url])
             }
-            Button("タグを管理…") {
-                NSWorkspace.shared.activateFileViewerSelecting([file.url])
-            }
         }
+    }
+}
+
+/// macOS 13 compatible empty state placeholder (ContentUnavailableView requires macOS 14)
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
 }

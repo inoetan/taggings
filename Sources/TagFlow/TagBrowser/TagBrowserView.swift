@@ -12,10 +12,10 @@ struct TagBrowserView: View {
             if let tag = selectedTag {
                 TagFileGridView(tag: tag)
             } else {
-                ContentUnavailableView(
-                    "タグを選択",
-                    systemImage: "tag",
-                    description: Text("左のサイドバーからタグを選んでください")
+                EmptyStateView(
+                    icon: "tag",
+                    title: "タグを選択",
+                    message: "左のサイドバーからタグを選んでください"
                 )
             }
         }

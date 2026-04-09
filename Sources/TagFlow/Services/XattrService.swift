@@ -99,20 +99,29 @@ enum XattrService {
     static func removeTag(_ tag: Tag, from url: URL) throws {
         var existing = try readFinderTagStrings(from: url)
         existing.removeAll { $0 == tag.name || $0.hasPrefix(tag.name + "\n") }
-        try write(tags: [], to: url)  // will remove if empty
-        if !existing.isEmpty {
-            let path = url.resolvingSymlinksInPath().path
-            let data = try PropertyListSerialization.data(
-                fromPropertyList: existing,
-                format: .binary,
-                options: 0
-            )
-            let r = data.withUnsafeBytes { ptr -> Int32 in
-                setxattr(path, tagXattrKey, ptr.baseAddress, data.count, 0, 0)
-            }
-            if r != 0 {
+        try writeRawStrings(existing, to: url)
+    }
+
+    // Write raw Finder tag strings (may include color suffix like "Work\n6")
+    private static func writeRawStrings(_ tagStrings: [String], to url: URL) throws {
+        let path = url.resolvingSymlinksInPath().path
+        if tagStrings.isEmpty {
+            let r = removexattr(path, tagXattrKey, 0)
+            if r != 0 && errno != ENOATTR {
                 throw makeWriteError(errno, url: url)
             }
+            return
+        }
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: tagStrings,
+            format: .binary,
+            options: 0
+        )
+        let result = data.withUnsafeBytes { ptr -> Int32 in
+            setxattr(path, tagXattrKey, ptr.baseAddress, data.count, 0, 0)
+        }
+        if result != 0 {
+            throw makeWriteError(errno, url: url)
         }
     }
 
