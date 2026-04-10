@@ -39,6 +39,10 @@ final class EdgeTriggerView: NSView {
     private func setup() {
         registerForDraggedTypes([.fileURL])
         wantsLayer = true
+        // The activation zone extends beyond the visible strip (16px) to the full window (48px).
+        // Pixels with alpha == 0.0 are treated as click-through by the window server, so
+        // NSTrackingArea won't fire there. A near-zero but non-zero background prevents that.
+        layer?.backgroundColor = NSColor(white: 0, alpha: 0.01).cgColor
 
         // Visual effect background — only fills the visible strip portion (visualThickness),
         // flush with the screen edge. The surrounding activation-zone area is transparent.

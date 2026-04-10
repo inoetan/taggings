@@ -44,7 +44,10 @@ final class EdgeTriggerWindow: NSWindow {
         isReleasedWhenClosed = false
         isRestorable = false
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
+        // NOTE: .screenSaver level (~2000) causes macOS to skip this window when routing
+        // NSDragging IPC — draggingEntered never fires at that level.
+        // .floating ensures both NSTrackingArea and NSDragging are delivered normally.
+        level = .floating
     }
 
     /// The pocket rect: window extends `hitThickness` inward from the edge,
