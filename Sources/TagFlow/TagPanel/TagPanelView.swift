@@ -60,10 +60,16 @@ struct TagPanelView: View {
                         .onDrop(of: [.fileURL], isTargeted: Binding(
                             get: { dropTargetTagID == tag.id },
                             set: { active in
-                                if active {
-                                    dropTargetTagID = tag.id
-                                } else if dropTargetTagID == tag.id {
-                                    dropTargetTagID = nil
+                                // Defer the @State mutation so it doesn't happen
+                                // inside a SwiftUI view-update cycle, which causes
+                                // "Publishing changes from within view updates".
+                                let id = tag.id
+                                DispatchQueue.main.async {
+                                    if active {
+                                        dropTargetTagID = id
+                                    } else if dropTargetTagID == id {
+                                        dropTargetTagID = nil
+                                    }
                                 }
                             }
                         )) { providers in

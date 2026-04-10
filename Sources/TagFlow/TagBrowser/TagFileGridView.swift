@@ -7,6 +7,8 @@ struct TagFileGridView: View {
     @State private var files: [TaggedFile] = []
     @State private var isLoading = true
     @State private var isListView = false
+    /// URLs of currently selected files (URL == TaggedFile.id).
+    @State private var selectedFileIDs: Set<URL> = []
 
     private let columns = [GridItem(.adaptive(minimum: 80, maximum: 100))]
 
@@ -30,6 +32,15 @@ struct TagFileGridView: View {
         .navigationTitle(tag.name)
         .toolbar {
             ToolbarItemGroup {
+                // Tag-removal button — enabled when anything is selected
+                Button(action: removeTagFromSelected) {
+                    Label("タグを解除", systemImage: "tag.slash")
+                }
+                .disabled(selectedFileIDs.isEmpty)
+                .help("選択したファイルから「\(tag.name)」タグを解除")
+
+                Divider()
+
                 // Grid / list toggle
                 Picker("表示切替", selection: $isListView) {
                     Image(systemName: "square.grid.2x2").tag(false)
@@ -46,7 +57,7 @@ struct TagFileGridView: View {
         }
         .onAppear { startQuery() }
         .onDisappear { queryService.stopQuery() }
-        .onChange(of: tag.id) { _ in startQuery() }
+        .onChange(of: tag.id) { _ in selectedFileIDs.removeAll(); startQuery() }
     }
 
     // MARK: - Grid view
@@ -55,7 +66,28 @@ struct TagFileGridView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(files) { file in
-                    FileGridCell(file: file)
+                    FileGridCell(file: file, isSelected: selectedFileIDs.contains(file.url))
+                        .onTapGesture {
+                            // Toggle selection
+                            if selectedFileIDs.contains(file.url) {
+                                selectedFileIDs.remove(file.url)
+                            } else {
+                                selectedFileIDs.insert(file.url)
+                            }
+                        }
+                        .onDrag {
+                            NSItemProvider(object: file.url as NSURL)
+                        }
+                        .contextMenu {
+                            Button("Finderで表示") {
+                                NSWorkspace.shared.activateFileViewerSelecting([file.url])
+                            }
+                            Divider()
+                            Button("タグを解除", role: .destructive) {
+                                try? XattrService.removeTag(tag, from: file.url)
+                                startQuery()
+                            }
+                        }
                 }
             }
             .padding()
@@ -65,7 +97,7 @@ struct TagFileGridView: View {
     // MARK: - List view
 
     private var fileList: some View {
-        List(files) { file in
+        List(files, selection: $selectedFileIDs) { file in
             FileListRow(file: file)
                 .onDrag {
                     NSItemProvider(object: file.url as NSURL)
@@ -74,9 +106,29 @@ struct TagFileGridView: View {
                     Button("Finderで表示") {
                         NSWorkspace.shared.activateFileViewerSelecting([file.url])
                     }
+                    Divider()
+                    Button("タグを解除", role: .destructive) {
+                        try? XattrService.removeTag(tag, from: file.url)
+                        startQuery()
+                    }
                 }
         }
         .listStyle(.inset)
+        // Delete key removes the tag from selected files
+        .onDeleteCommand { removeTagFromSelected() }
+    }
+
+    // MARK: - Actions
+
+    private func removeTagFromSelected() {
+        let urlsToProcess = files
+            .filter { selectedFileIDs.contains($0.url) }
+            .map { $0.url }
+        for url in urlsToProcess {
+            try? XattrService.removeTag(tag, from: url)
+        }
+        selectedFileIDs.removeAll()
+        startQuery()
     }
 
     // MARK: - Data
@@ -100,13 +152,22 @@ struct TagFileGridView: View {
 
 private struct FileGridCell: View {
     let file: TaggedFile
+    let isSelected: Bool
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(nsImage: file.icon)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 48, height: 48)
+            ZStack(alignment: .topTrailing) {
+                Image(nsImage: file.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 48, height: 48)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.white, Color.accentColor)
+                        .font(.system(size: 16))
+                        .offset(x: 6, y: -6)
+                }
+            }
             Text(file.displayName)
                 .font(.caption)
                 .lineLimit(2)
@@ -115,15 +176,11 @@ private struct FileGridCell: View {
         }
         .frame(width: 88)
         .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
         .contentShape(Rectangle())
-        .onDrag {
-            NSItemProvider(object: file.url as NSURL)
-        }
-        .contextMenu {
-            Button("Finderで表示") {
-                NSWorkspace.shared.activateFileViewerSelecting([file.url])
-            }
-        }
     }
 }
 
