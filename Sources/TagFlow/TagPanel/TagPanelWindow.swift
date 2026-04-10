@@ -24,6 +24,10 @@ final class TagPanelWindow: NSWindow {
                    backing: .buffered, defer: false)
     }
 
+    // Borderless windows return false by default; override so SwiftUI hosted views
+    // (e.g. the new-tag TextField) can receive keyboard focus without warnings.
+    override var canBecomeKey: Bool { true }
+
     private func configure() {
         isOpaque = false
         backgroundColor = .clear
