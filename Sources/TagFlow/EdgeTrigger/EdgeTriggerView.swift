@@ -82,6 +82,9 @@ final class EdgeTriggerView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         guard !isRepositioning else { return }
+        // Don't close if the cursor moved into the tag panel
+        let loc = NSEvent.mouseLocation
+        if let frame = coordinator?.panelFrame, NSMouseInRect(loc, frame, false) { return }
         coordinator?.dragDidEnd(edge)
     }
 

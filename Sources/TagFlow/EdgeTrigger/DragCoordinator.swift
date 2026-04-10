@@ -9,6 +9,10 @@ final class DragCoordinator {
     /// The pocket strip window — faded out while the panel is open.
     weak var stripWindow: NSWindow?
 
+    /// Current panel window frame — used by EdgeTriggerView to avoid closing when
+    /// the cursor moves from the strip into the panel.
+    var panelFrame: NSRect? { panelController?.window?.frame }
+
     init(tagStore: TagStore) {
         self.tagStore = tagStore
     }

@@ -15,7 +15,7 @@ struct TagPanelView: View {
         ZStack {
             // Frosted glass background
             VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                .cornerRadius(12)
+                .cornerRadius(16)
 
             VStack(alignment: .leading, spacing: 0) {
                 header
@@ -26,7 +26,7 @@ struct TagPanelView: View {
             }
             .padding(.vertical, 8)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(radius: 16)
     }
 
@@ -128,7 +128,7 @@ struct TagRowView: View {
                 .fill(Color(nsColor: tag.color.nsColor))
                 .frame(width: 12, height: 12)
             Text(tag.name)
-                .font(.body)
+                .font(.system(size: 15))
             Spacer()
             if isHovered {
                 Image(systemName: "arrow.down.circle.fill")

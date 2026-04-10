@@ -28,6 +28,19 @@ final class TagPanelWindow: NSWindow {
     // (e.g. the new-tag TextField) can receive keyboard focus without warnings.
     override var canBecomeKey: Bool { true }
 
+    // Apply corner radius at the layer level so macOS computes the window
+    // shadow from the rounded alpha channel, not the rectangular frame.
+    override var contentView: NSView? {
+        get { super.contentView }
+        set {
+            super.contentView = newValue
+            newValue?.wantsLayer = true
+            newValue?.layer?.cornerRadius = 16
+            newValue?.layer?.masksToBounds = true
+            invalidateShadow()
+        }
+    }
+
     private func configure() {
         isOpaque = false
         backgroundColor = .clear
