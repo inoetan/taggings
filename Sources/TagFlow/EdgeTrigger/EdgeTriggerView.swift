@@ -30,6 +30,12 @@ final class EdgeTriggerView: NSView {
         setup()
     }
 
+    // Always return self from hitTest so NSDragging is delivered to EdgeTriggerView
+    // rather than to NSVisualEffectView or GripDotsView (which don't accept drops).
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
+
     private func setup() {
         registerForDraggedTypes([.fileURL])
         wantsLayer = true
@@ -77,6 +83,7 @@ final class EdgeTriggerView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         guard !isRepositioning else { return }
+        print("[EdgeTrigger] mouseEntered edge=\(edge)")
         coordinator?.dragDidEnterEdge(edge, urls: [], stripFrame: window?.frame)
     }
 
@@ -152,6 +159,7 @@ final class EdgeTriggerView: NSView {
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let urls = fileURLs(from: sender), !urls.isEmpty else { return [] }
+        print("[EdgeTrigger] draggingEntered edge=\(edge) urls=\(urls.count)")
         coordinator?.dragDidEnterEdge(edge, urls: urls, stripFrame: window?.frame)
         return .link
     }

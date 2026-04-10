@@ -31,14 +31,18 @@ final class DragCoordinator {
     // MARK: - Events from EdgeTriggerView
 
     func dragDidEnterEdge(_ edge: ScreenEdge, urls: [URL], stripFrame: NSRect? = nil) {
-        // Fade the strip out while panel is showing.
-        // Do NOT set ignoresMouseEvents — the drag system must still be able
-        // to deliver draggingExited to the strip so we know when to close.
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            stripWindow?.animator().alphaValue = 0
+        print("[Coordinator] dragDidEnterEdge edge=\(edge) urls=\(urls.count)")
+        // Defer UI work to the next run loop to avoid re-entrancy in the
+        // drag IPC callback (kDragIPCLeaveApplication / kDragIPCCompleted).
+        let strip = stripWindow
+        let panel = panelController
+        DispatchQueue.main.async {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                strip?.animator().alphaValue = 0
+            }
+            panel?.slideIn(with: urls, from: stripFrame)
         }
-        panelController?.slideIn(with: urls, from: stripFrame)
     }
 
     func dragDidEnd(_ edge: ScreenEdge) {
@@ -58,10 +62,13 @@ final class DragCoordinator {
     // MARK: - Tag application (called by TagPanelView)
 
     func applyTag(_ tag: Tag, to urls: [URL]) {
+        print("[Coordinator] applyTag tag=\(tag.name) files=\(urls.count)")
         for url in urls {
             do {
                 try XattrService.addTag(tag, to: url)
+                print("[Coordinator] tagged \(url.lastPathComponent) with \(tag.name)")
             } catch {
+                print("[Coordinator] error: \(error)")
                 presentError(error)
             }
         }
