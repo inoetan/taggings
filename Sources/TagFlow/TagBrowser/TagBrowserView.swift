@@ -1,15 +1,22 @@
 import SwiftUI
 
+/// Shared navigation state for the tag browser.
+/// Held by TagBrowserWindowController so the status bar can drive the
+/// selection without recreating the window.
+final class TagBrowserNavigation: ObservableObject {
+    @Published var selectedTag: Tag?
+}
+
 struct TagBrowserView: View {
     @ObservedObject var tagStore: TagStore
-    @State private var selectedTag: Tag? = nil
+    @ObservedObject var navigation: TagBrowserNavigation
 
     var body: some View {
         NavigationSplitView {
-            TagSidebarView(tagStore: tagStore, selectedTag: $selectedTag)
+            TagSidebarView(tagStore: tagStore, selectedTag: $navigation.selectedTag)
                 .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 260)
         } detail: {
-            if let tag = selectedTag {
+            if let tag = navigation.selectedTag {
                 TagFileGridView(tag: tag)
             } else {
                 EmptyStateView(

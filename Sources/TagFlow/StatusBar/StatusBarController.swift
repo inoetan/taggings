@@ -44,11 +44,16 @@ final class StatusBarController {
             menu.addItem(empty)
         } else {
             for tag in tagStore.tags {
-                let item = NSMenuItem(title: tag.name, action: #selector(openTagBrowser), keyEquivalent: "")
+                let item = NSMenuItem(
+                    title: tag.name,
+                    action: #selector(openTagBrowserToTag(_:)),
+                    keyEquivalent: ""
+                )
                 item.target = self
-                if tag.color != .none {
-                    item.image = colorDot(tag.color.nsColor)
-                }
+                // Store the tag name as a String (bridges to NSString for representedObject).
+                // On click we look it up in tagStore to get the current Tag value.
+                item.representedObject = tag.name
+                item.image = colorDot(tag.color.nsColor)
                 menu.addItem(item)
             }
         }
@@ -62,7 +67,21 @@ final class StatusBarController {
         statusItem.menu = menu
     }
 
+    // MARK: - Actions
+
     @objc private func openTagBrowser() {
+        ensureBrowserOpen()
+    }
+
+    @objc private func openTagBrowserToTag(_ sender: NSMenuItem) {
+        ensureBrowserOpen()
+        if let name = sender.representedObject as? String,
+           let tag = tagStore.tag(named: name) {
+            tagBrowserWindowController?.navigate(to: tag)
+        }
+    }
+
+    private func ensureBrowserOpen() {
         if tagBrowserWindowController == nil {
             tagBrowserWindowController = TagBrowserWindowController(tagStore: tagStore)
         }

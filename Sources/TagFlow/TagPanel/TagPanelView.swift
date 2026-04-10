@@ -10,6 +10,7 @@ struct TagPanelView: View {
     @State private var hoveredTagID: UUID? = nil
     @State private var dropTargetTagID: UUID? = nil
     @State private var newTagName: String = ""
+    @State private var newTagColor: Tag.TagColor = .none
     @State private var isAddingTag = false
 
     var body: some View {
@@ -149,18 +150,27 @@ struct TagPanelView: View {
     private var addTagSection: some View {
         Group {
             if isAddingTag {
-                HStack {
-                    TextField("タグ名", text: $newTagName)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { commitNewTag() }
-                    Button("追加") { commitNewTag() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    Button(action: { isAddingTag = false; newTagName = "" }) {
-                        Image(systemName: "xmark")
+                VStack(spacing: 6) {
+                    HStack {
+                        TextField("タグ名", text: $newTagName)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { commitNewTag() }
+                        Button("追加") { commitNewTag() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        Button(action: { isAddingTag = false; newTagName = ""; newTagColor = .none }) {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    // Color swatches — matches Finder's xattr color set
+                    HStack(spacing: 8) {
+                        ForEach(Tag.TagColor.allCases, id: \.self) { color in
+                            colorSwatch(color)
+                        }
+                        Spacer()
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -179,16 +189,32 @@ struct TagPanelView: View {
         }
     }
 
+    private func colorSwatch(_ color: Tag.TagColor) -> some View {
+        let dotColor: Color = color == .none
+            ? Color.secondary.opacity(0.4)
+            : Color(nsColor: color.nsColor)
+        return Circle()
+            .fill(dotColor)
+            .frame(width: 16, height: 16)
+            .overlay(
+                Circle()
+                    .strokeBorder(Color.primary.opacity(0.7), lineWidth: newTagColor == color ? 2 : 0)
+                    .padding(1)
+            )
+            .onTapGesture { newTagColor = color }
+    }
+
     private func commitNewTag() {
         let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty {
-            tagStore.addTag(name: name)
+            tagStore.addTag(name: name, color: newTagColor)
             if let newTag = tagStore.tag(named: name) {
                 coordinator.applyTag(newTag, to: draggedURLs)
             }
         }
         isAddingTag = false
         newTagName = ""
+        newTagColor = .none
         coordinator.dragDidEnd(edge)
     }
 }

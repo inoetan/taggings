@@ -8,6 +8,10 @@ struct TaggedFile: Identifiable, Hashable {
     var isDirectory: Bool
     var tagNames: [String]  // raw names, without color suffix
 
+    var modificationDate: Date? {
+        try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    }
+
     var icon: NSImage {
         NSWorkspace.shared.icon(forFile: url.path)
     }

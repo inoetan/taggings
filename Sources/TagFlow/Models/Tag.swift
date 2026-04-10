@@ -29,6 +29,19 @@ struct Tag: Identifiable, Codable, Hashable {
         case red    = 6
         case orange = 7
 
+        var displayName: String {
+            switch self {
+            case .none:   return "なし"
+            case .gray:   return "グレー"
+            case .green:  return "グリーン"
+            case .purple: return "パープル"
+            case .blue:   return "ブルー"
+            case .yellow: return "イエロー"
+            case .red:    return "レッド"
+            case .orange: return "オレンジ"
+            }
+        }
+
         var nsColor: NSColor {
             switch self {
             case .none:   return .labelColor

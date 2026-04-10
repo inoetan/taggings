@@ -13,6 +13,18 @@ struct TagSidebarView: View {
                     TagSidebarRow(tag: tag)
                         .tag(tag)
                         .contextMenu {
+                            Menu("カラー") {
+                                ForEach(Tag.TagColor.allCases, id: \.self) { color in
+                                    Button(action: { tagStore.updateColor(color, for: tag) }) {
+                                        if tag.color == color {
+                                            Label(color.displayName, systemImage: "checkmark")
+                                        } else {
+                                            Text(color.displayName)
+                                        }
+                                    }
+                                }
+                            }
+                            Divider()
                             Button("削除", role: .destructive) {
                                 if selectedTag?.id == tag.id { selectedTag = nil }
                                 tagStore.deleteTag(tag)
