@@ -79,7 +79,9 @@ final class EdgeTriggerManager {
     private func startGlobalMonitors() {
         // Fires when a drag (left mouse button held + moved) occurs in another app
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
-            self?.handleGlobalDrag(at: NSEvent.mouseLocation)
+            let loc = NSEvent.mouseLocation
+            print("[EdgeTrigger] drag monitor fired, location=\(loc)")
+            self?.handleGlobalDrag(at: loc)
         }
         // On mouse-up: disable hot zones and close any open panel.
         // This handles cancellations that happen while the drag is over the tag panel

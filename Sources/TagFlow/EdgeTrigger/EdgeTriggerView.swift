@@ -21,6 +21,7 @@ final class EdgeTriggerView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        print("[EdgeTrigger] draggingEntered edge=\(edge)")
         guard let urls = fileURLs(from: sender), !urls.isEmpty else { return [] }
         coordinator?.dragDidEnterEdge(edge, urls: urls)
         return .link
