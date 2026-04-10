@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Controls slide-in/out animation for a tag panel anchored to one screen edge.
+/// Controls the tag panel window. Animates by expanding from the pocket strip frame.
 final class TagPanelWindowController: NSWindowController {
     private let edge: ScreenEdge
     private let screen: NSScreen
@@ -16,18 +16,14 @@ final class TagPanelWindowController: NSWindowController {
         self.tagStore = tagStore
         self.coordinator = coordinator
 
-        // Use static helper — instance methods cannot be called before super.init
-        let initFrame = Self.offscreenRect(for: edge, screen: screen)
-        let panelWindow = TagPanelWindow(contentRect: initFrame)
-        panelWindow.isRestorable = false  // prevent macOS from calling init?(coder:) on restart
+        let panelWindow = TagPanelWindow(contentRect: .zero)
+        panelWindow.isRestorable = false
         super.init(window: panelWindow)
     }
 
-    // All stored properties must be initialized before super.init (Swift phase-1 rule).
-    // isRestorable = false should prevent this path; it is here only as a safe fallback.
     required init?(coder: NSCoder) {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return nil }
-        self.edge = .leading
+        self.edge = .trailing
         self.screen = screen
         self.tagStore = TagStore.shared
         self.isVisible = false
@@ -36,83 +32,108 @@ final class TagPanelWindowController: NSWindowController {
 
     // MARK: - Public
 
-    func slideIn(with urls: [URL]) {
-        guard !isVisible else { return }
+    /// Slide in the panel, expanding from `stripFrame` if provided.
+    func slideIn(with urls: [URL], from stripFrame: NSRect? = nil) {
+        if isVisible {
+            // Panel already open — update URLs if a real file drag arrives
+            if !urls.isEmpty { updateContent(urls: urls) }
+            return
+        }
         isVisible = true
-
         guard let coordinator = coordinator else { return }
 
-        let view = TagPanelView(
-            edge: edge,
-            draggedURLs: urls,
-            tagStore: tagStore,
-            coordinator: coordinator
-        )
+        let stripCenter = stripFrame.map { NSPoint(x: $0.midX, y: $0.midY) }
+        let targetFrame = Self.onscreenRect(for: edge, screen: screen, near: stripCenter)
+
+        let view = TagPanelView(edge: edge, draggedURLs: urls,
+                                tagStore: tagStore, coordinator: coordinator)
         let hosting = NSHostingController(rootView: view)
-        hosting.view.frame = CGRect(origin: .zero, size: Self.panelSize(edge: edge, screen: screen))
+        hosting.view.frame = CGRect(origin: .zero, size: targetFrame.size)
         window?.contentViewController = hosting
 
-        let targetFrame = Self.onscreenRect(for: edge, screen: screen)
-        window?.setFrame(Self.offscreenRect(for: edge, screen: screen), display: false)
+        // Start from strip frame and expand — "にゅっと拡大" effect
+        let startFrame = stripFrame ?? targetFrame
+        window?.alphaValue = 0
+        window?.setFrame(startFrame, display: false)
         window?.orderFrontRegardless()
 
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
+            ctx.duration = 0.28
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             window?.animator().setFrame(targetFrame, display: true)
+            window?.animator().alphaValue = 1
         }
     }
 
-    func slideOut() {
-        guard isVisible else { return }
+    func slideOut(completion: (() -> Void)? = nil) {
+        guard isVisible else { completion?(); return }
         isVisible = false
 
-        let targetFrame = Self.offscreenRect(for: edge, screen: screen)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
+            ctx.duration = 0.18
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window?.animator().setFrame(targetFrame, display: true)
+            window?.animator().alphaValue = 0
         } completionHandler: { [weak self] in
             self?.window?.orderOut(nil)
+            completion?()
         }
     }
 
-    // MARK: - Frame Calculations (static to avoid pre-super.init restrictions)
+    // MARK: - Private
 
-    static func panelSize(edge: ScreenEdge, screen: NSScreen) -> CGSize {
-        let panelWidth = AppSettings.shared.tagPanelWidth
-        switch edge {
-        case .leading, .trailing:
-            return CGSize(width: panelWidth, height: min(screen.visibleFrame.height, 500))
-        case .top, .bottom:
-            return CGSize(width: min(screen.frame.width, 400), height: panelWidth)
-        }
+    private func updateContent(urls: [URL]) {
+        guard let coordinator = coordinator else { return }
+        let view = TagPanelView(edge: edge, draggedURLs: urls,
+                                tagStore: tagStore, coordinator: coordinator)
+        window?.contentViewController = NSHostingController(rootView: view)
     }
 
-    static func onscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
+    // MARK: - Frame helpers
+
+    /// Panel rect anchored to the edge, centered near the strip's position.
+    static func onscreenRect(for edge: ScreenEdge, screen: NSScreen,
+                              near stripCenter: NSPoint? = nil) -> CGRect {
         let size = panelSize(edge: edge, screen: screen)
         let sf = screen.frame
         let vf = screen.visibleFrame
+
         switch edge {
-        case .leading:
-            return CGRect(x: sf.minX, y: vf.midY - size.height / 2, width: size.width, height: size.height)
         case .trailing:
-            return CGRect(x: sf.maxX - size.width, y: vf.midY - size.height / 2, width: size.width, height: size.height)
+            let cy = (stripCenter?.y ?? vf.midY)
+                .clamped(to: vf.minY + size.height / 2 ... vf.maxY - size.height / 2)
+            return CGRect(x: sf.maxX - size.width, y: cy - size.height / 2,
+                          width: size.width, height: size.height)
+        case .leading:
+            let cy = (stripCenter?.y ?? vf.midY)
+                .clamped(to: vf.minY + size.height / 2 ... vf.maxY - size.height / 2)
+            return CGRect(x: sf.minX, y: cy - size.height / 2,
+                          width: size.width, height: size.height)
         case .top:
-            return CGRect(x: sf.midX - size.width / 2, y: vf.maxY - size.height, width: size.width, height: size.height)
+            let cx = (stripCenter?.x ?? sf.midX)
+                .clamped(to: sf.minX + size.width / 2 ... sf.maxX - size.width / 2)
+            return CGRect(x: cx - size.width / 2, y: vf.maxY - size.height,
+                          width: size.width, height: size.height)
         case .bottom:
-            return CGRect(x: sf.midX - size.width / 2, y: sf.minY, width: size.width, height: size.height)
+            let cx = (stripCenter?.x ?? sf.midX)
+                .clamped(to: sf.minX + size.width / 2 ... sf.maxX - size.width / 2)
+            return CGRect(x: cx - size.width / 2, y: sf.minY,
+                          width: size.width, height: size.height)
         }
     }
 
-    static func offscreenRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
-        var rect = onscreenRect(for: edge, screen: screen)
+    static func panelSize(edge: ScreenEdge, screen: NSScreen) -> CGSize {
+        let w = AppSettings.shared.tagPanelWidth
         switch edge {
-        case .leading:   rect.origin.x -= rect.width
-        case .trailing:  rect.origin.x += rect.width
-        case .top:       rect.origin.y += rect.height
-        case .bottom:    rect.origin.y -= rect.height
+        case .leading, .trailing:
+            return CGSize(width: w, height: min(screen.visibleFrame.height, 500))
+        case .top, .bottom:
+            return CGSize(width: min(screen.frame.width, 400), height: w)
         }
-        return rect
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

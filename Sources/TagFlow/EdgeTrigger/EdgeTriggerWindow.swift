@@ -1,72 +1,66 @@
 import AppKit
 
-/// An invisible, always-on-top strip window parked at a screen edge.
-/// Always accepts NSDragging events; regular mouse clicks pass through via the clear background.
+/// A short pocket strip anchored to a screen edge. The user can drag it to any edge.
 final class EdgeTriggerWindow: NSWindow {
     let edge: ScreenEdge
-    let targetScreen: NSScreen  // renamed: NSWindow already has `var screen: NSScreen?`
+    let targetScreen: NSScreen
 
-    init(edge: ScreenEdge, screen: NSScreen) {
+    static let thickness: CGFloat = 16   // perpendicular to edge
+    static let length: CGFloat   = 200   // along the edge
+
+    init(edge: ScreenEdge, screen: NSScreen, centerRatio: CGFloat = 0.5) {
         self.edge = edge
         self.targetScreen = screen
-        let frame = EdgeTriggerWindow.edgeRect(for: edge, screen: screen)
-        super.init(
-            contentRect: frame,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false,
-            screen: screen
-        )
+        let frame = EdgeTriggerWindow.pocketRect(for: edge, screen: screen, centerRatio: centerRatio)
+        super.init(contentRect: frame, styleMask: .borderless, backing: .buffered,
+                   defer: false, screen: screen)
         configure()
     }
 
-    // NSWindow's designated initializer must be overridden so Swift does not
-    // replace it with an _unimplementedInitializer stub.  AppKit may route
-    // through this path (e.g. during the coder init chain).
     override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask,
                   backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
-        self.edge = .leading
+        self.edge = .trailing
         self.targetScreen = NSScreen.main ?? NSScreen.screens[0]
         super.init(contentRect: contentRect, styleMask: style,
                    backing: backingStoreType, defer: flag)
     }
 
     required init?(coder: NSCoder) {
-        self.edge = .leading
+        self.edge = .trailing
         self.targetScreen = NSScreen.main ?? NSScreen.screens[0]
-        super.init(contentRect: .zero, styleMask: .borderless,
-                   backing: .buffered, defer: false)
+        super.init(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
     }
 
     private func configure() {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        ignoresMouseEvents = false  // must be false to receive NSDragging events
+        ignoresMouseEvents = false
         isReleasedWhenClosed = false
-        isRestorable = false  // never restore edge trigger windows across sessions
-        // Must appear on all spaces including fullscreen apps
+        isRestorable = false
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        // Above all normal windows; .screenSaver ensures visibility over fullscreen apps
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
     }
 
-    /// The hot-zone rect for an edge — a thin strip spanning the full edge.
-    static func edgeRect(for edge: ScreenEdge, screen: NSScreen) -> CGRect {
+    /// The pocket rect: a short strip flush with the given edge, centered at `centerRatio` (0…1).
+    static func pocketRect(for edge: ScreenEdge, screen: NSScreen, centerRatio: CGFloat = 0.5) -> CGRect {
         let sf = screen.frame
         let vf = screen.visibleFrame
-        let hotZone = AppSettings.shared.edgeHotZoneWidth
+        let t = thickness, l = length
 
         switch edge {
-        case .top:
-            // Use visibleFrame top to avoid menu bar on the main screen
-            return CGRect(x: sf.minX, y: vf.maxY - hotZone, width: sf.width, height: hotZone)
-        case .bottom:
-            return CGRect(x: sf.minX, y: sf.minY, width: sf.width, height: hotZone)
-        case .leading:
-            return CGRect(x: sf.minX, y: sf.minY, width: hotZone, height: sf.height)
         case .trailing:
-            return CGRect(x: sf.maxX - hotZone, y: sf.minY, width: hotZone, height: sf.height)
+            let cy = vf.minY + vf.height * centerRatio
+            return CGRect(x: sf.maxX - t, y: cy - l / 2, width: t, height: l)
+        case .leading:
+            let cy = vf.minY + vf.height * centerRatio
+            return CGRect(x: sf.minX, y: cy - l / 2, width: t, height: l)
+        case .top:
+            let cx = sf.minX + sf.width * centerRatio
+            return CGRect(x: cx - l / 2, y: vf.maxY - t, width: l, height: t)
+        case .bottom:
+            let cx = sf.minX + sf.width * centerRatio
+            return CGRect(x: cx - l / 2, y: sf.minY, width: l, height: t)
         }
     }
 }

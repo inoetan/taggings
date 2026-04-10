@@ -1,17 +1,14 @@
 import AppKit
 
-/// Creates and manages edge trigger windows and tag panel windows for all screens.
-/// EdgeTriggerWindows are always active (ignoresMouseEvents = false) so they can
-/// receive NSDragging events directly — no global event monitor is needed.
+/// Manages the single repositionable pocket strip and its associated tag panel.
 final class EdgeTriggerManager {
     private let tagStore: TagStore
     private let coordinator: DragCoordinator
 
-    private var edgeWindows: [ScreenEdge: EdgeTriggerWindow] = [:]
-    private var panelControllers: [ScreenEdge: TagPanelWindowController] = [:]
+    private var pocketWindow: EdgeTriggerWindow?
+    private var pocketEdge: ScreenEdge = .trailing
+    private var pocketCenterRatio: CGFloat = 0.5
 
-    // Fallback: close any open panel when the mouse button is released,
-    // in case draggingEnded on EdgeTriggerView is not called (e.g. drop on panel).
     private var mouseUpMonitor: Any?
 
     init(tagStore: TagStore) {
@@ -20,9 +17,8 @@ final class EdgeTriggerManager {
     }
 
     func setup() {
-        buildWindowsForMainScreen()
+        buildPocket()
         startMouseUpMonitor()
-
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screensDidChange),
@@ -33,62 +29,51 @@ final class EdgeTriggerManager {
 
     func teardown() {
         stopMouseUpMonitor()
-        edgeWindows.values.forEach { $0.orderOut(nil) }
-        panelControllers.values.forEach { $0.window?.orderOut(nil) }
-        edgeWindows.removeAll()
-        panelControllers.removeAll()
+        pocketWindow?.orderOut(nil)
+        coordinator.clearPanelController()
         NotificationCenter.default.removeObserver(self)
     }
 
-    // MARK: - Window Construction
+    // MARK: - Build
 
-    private func buildWindowsForMainScreen() {
+    private func buildPocket() {
         guard let screen = NSScreen.main else { return }
-        buildWindows(for: screen)
-    }
 
-    private func buildWindows(for screen: NSScreen) {
-        // DEBUG: limit to trailing edge only for initial testing
-        let activeEdges: [ScreenEdge] = [.trailing]
-        for edge in activeEdges {
-            let edgeWin = EdgeTriggerWindow(edge: edge, screen: screen)
-            let edgeView = EdgeTriggerView(edge: edge)
-            edgeView.coordinator = coordinator
-            edgeWin.contentView = edgeView
-            edgeWin.orderFrontRegardless()
-            edgeWindows[edge] = edgeWin
+        pocketWindow?.orderOut(nil)
+        coordinator.clearPanelController()
 
-            let panelCtrl = TagPanelWindowController(edge: edge, screen: screen, tagStore: tagStore, coordinator: coordinator)
-            coordinator.registerPanelController(panelCtrl, for: edge)
-            panelControllers[edge] = panelCtrl
+        let win = EdgeTriggerWindow(edge: pocketEdge, screen: screen,
+                                    centerRatio: pocketCenterRatio)
+        let view = EdgeTriggerView(edge: pocketEdge)
+        view.coordinator = coordinator
+        view.onRepositioned = { [weak self] newEdge, ratio in
+            self?.pocketEdge = newEdge
+            self?.pocketCenterRatio = ratio
+            self?.buildPocket()
         }
+        win.contentView = view
+        win.orderFrontRegardless()
+        pocketWindow = win
+        coordinator.stripWindow = win
+
+        let panel = TagPanelWindowController(
+            edge: pocketEdge, screen: screen,
+            tagStore: tagStore, coordinator: coordinator
+        )
+        coordinator.registerPanelController(panel, for: pocketEdge)
     }
 
-    @objc private func screensDidChange() {
-        teardownWindows()
-        buildWindowsForMainScreen()
-    }
+    @objc private func screensDidChange() { buildPocket() }
 
-    private func teardownWindows() {
-        edgeWindows.values.forEach { $0.orderOut(nil) }
-        panelControllers.values.forEach { $0.window?.orderOut(nil) }
-        edgeWindows.removeAll()
-        panelControllers.removeAll()
-    }
-
-    // MARK: - Mouse-Up Monitor
+    // MARK: - Mouse-up fallback
 
     private func startMouseUpMonitor() {
         mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
-            self?.slideOutAllPanels()
+            self?.coordinator.slideOutAll()
         }
     }
 
     private func stopMouseUpMonitor() {
         if let m = mouseUpMonitor { NSEvent.removeMonitor(m); mouseUpMonitor = nil }
-    }
-
-    private func slideOutAllPanels() {
-        panelControllers.values.forEach { $0.slideOut() }
     }
 }

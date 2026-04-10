@@ -1,39 +1,58 @@
 import AppKit
 
-/// Routes drag events from edge trigger windows to tag panels and the XattrService.
+/// Routes drag/hover events from the pocket strip to the tag panel and XattrService.
 final class DragCoordinator {
-    // Keyed by (screen, edge)
-    private var tagPanelControllers: [ScreenEdge: TagPanelWindowController] = [:]
-    private var currentSession: DragSession?
+    private var panelController: TagPanelWindowController?
+    private var currentEdge: ScreenEdge?
     private let tagStore: TagStore
+
+    /// The pocket strip window — faded out while the panel is open.
+    weak var stripWindow: NSWindow?
 
     init(tagStore: TagStore) {
         self.tagStore = tagStore
     }
 
     func registerPanelController(_ controller: TagPanelWindowController, for edge: ScreenEdge) {
-        tagPanelControllers[edge] = controller
+        panelController = controller
+        currentEdge = edge
+    }
+
+    func clearPanelController() {
+        panelController?.window?.orderOut(nil)
+        panelController = nil
+        currentEdge = nil
     }
 
     // MARK: - Events from EdgeTriggerView
 
-    func dragDidEnterEdge(_ edge: ScreenEdge, urls: [URL]) {
-        let session = DragSession(urls: urls, sourceEdge: edge)
-        currentSession = session
-        tagPanelControllers[edge]?.slideIn(with: urls)
-    }
-
-    func dragDidExitEdge(_ edge: ScreenEdge) {
-        // Don't immediately hide — the drag may have moved into the tag panel itself
-        // The panel controller handles hiding when drag exits the panel
+    func dragDidEnterEdge(_ edge: ScreenEdge, urls: [URL], stripFrame: NSRect? = nil) {
+        // Fade the strip out while panel is showing
+        stripWindow?.ignoresMouseEvents = true
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            stripWindow?.animator().alphaValue = 0
+        }
+        panelController?.slideIn(with: urls, from: stripFrame)
     }
 
     func dragDidEnd(_ edge: ScreenEdge) {
-        tagPanelControllers[edge]?.slideOut()
-        currentSession = nil
+        panelController?.slideOut { [weak self] in
+            self?.stripWindow?.ignoresMouseEvents = false
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                self?.stripWindow?.animator().alphaValue = 1
+            }
+        }
     }
 
-    // Called by TagPanelView when the user drops files onto a tag
+    func slideOutAll() {
+        guard let edge = currentEdge else { return }
+        dragDidEnd(edge)
+    }
+
+    // MARK: - Tag application (called by TagPanelView)
+
     func applyTag(_ tag: Tag, to urls: [URL]) {
         for url in urls {
             do {
@@ -43,8 +62,6 @@ final class DragCoordinator {
             }
         }
     }
-
-    // MARK: - Private
 
     private func presentError(_ error: Error) {
         DispatchQueue.main.async {
