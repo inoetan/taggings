@@ -16,4 +16,8 @@ final class TagPanelWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         level = .floating
     }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }

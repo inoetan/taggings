@@ -20,6 +20,12 @@ final class EdgeTriggerWindow: NSWindow {
         configure()
     }
 
+    required init?(coder: NSCoder) {
+        self.edge = .leading           // placeholder; isRestorable=false prevents this path
+        self.targetScreen = NSScreen.main ?? NSScreen.screens[0]
+        super.init(coder: coder)
+    }
+
     private func configure() {
         isOpaque = false
         backgroundColor = .clear
