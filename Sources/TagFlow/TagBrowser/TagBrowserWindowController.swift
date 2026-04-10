@@ -2,11 +2,7 @@ import AppKit
 import SwiftUI
 
 final class TagBrowserWindowController: NSWindowController {
-    private let tagStore: TagStore
-
     init(tagStore: TagStore) {
-        self.tagStore = tagStore
-
         let view = TagBrowserView(tagStore: tagStore)
         let hostingController = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hostingController)
@@ -23,10 +19,7 @@ final class TagBrowserWindowController: NSWindowController {
         super.init(window: window)
     }
 
-    // tagStore must be initialized before super.init (Swift phase-1 rule).
-    // isRestorable = false should prevent this path; it is here only as a safe fallback.
     required init?(coder: NSCoder) {
-        self.tagStore = TagStore.shared
         super.init(coder: coder)
     }
 }
