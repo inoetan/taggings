@@ -1,17 +1,17 @@
 import AppKit
 
 /// Creates and manages edge trigger windows and tag panel windows for all screens.
-/// Uses a global NSEvent monitor to detect when a drag approaches a screen edge,
-/// then enables mouse event handling on the corresponding edge window.
+/// EdgeTriggerWindows are always active (ignoresMouseEvents = false) so they can
+/// receive NSDragging events directly — no global event monitor is needed.
 final class EdgeTriggerManager {
     private let tagStore: TagStore
     private let coordinator: DragCoordinator
 
-    // screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] -> [ScreenEdge: ...]
     private var edgeWindows: [ScreenEdge: EdgeTriggerWindow] = [:]
     private var panelControllers: [ScreenEdge: TagPanelWindowController] = [:]
 
-    private var dragMonitor: Any?
+    // Fallback: close any open panel when the mouse button is released,
+    // in case draggingEnded on EdgeTriggerView is not called (e.g. drop on panel).
     private var mouseUpMonitor: Any?
 
     init(tagStore: TagStore) {
@@ -21,7 +21,7 @@ final class EdgeTriggerManager {
 
     func setup() {
         buildWindowsForMainScreen()
-        startGlobalMonitors()
+        startMouseUpMonitor()
 
         NotificationCenter.default.addObserver(
             self,
@@ -32,7 +32,7 @@ final class EdgeTriggerManager {
     }
 
     func teardown() {
-        stopGlobalMonitors()
+        stopMouseUpMonitor()
         edgeWindows.values.forEach { $0.orderOut(nil) }
         panelControllers.values.forEach { $0.window?.orderOut(nil) }
         edgeWindows.removeAll()
@@ -74,51 +74,16 @@ final class EdgeTriggerManager {
         panelControllers.removeAll()
     }
 
-    // MARK: - Global Event Monitoring
+    // MARK: - Mouse-Up Monitor
 
-    private func startGlobalMonitors() {
-        // Fires when a drag (left mouse button held + moved) occurs in another app
-        dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
-            let loc = NSEvent.mouseLocation
-            print("[EdgeTrigger] drag monitor fired, location=\(loc)")
-            self?.handleGlobalDrag(at: loc)
-        }
-        // On mouse-up: disable hot zones and close any open panel.
-        // This handles cancellations that happen while the drag is over the tag panel
-        // (where draggingEnded on EdgeTriggerView is NOT called).
+    private func startMouseUpMonitor() {
         mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
-            self?.disableAllEdgeWindows()
             self?.slideOutAllPanels()
         }
     }
 
-    private func stopGlobalMonitors() {
-        if let m = dragMonitor { NSEvent.removeMonitor(m); dragMonitor = nil }
+    private func stopMouseUpMonitor() {
         if let m = mouseUpMonitor { NSEvent.removeMonitor(m); mouseUpMonitor = nil }
-    }
-
-    /// Enables the edge window when the drag pointer enters the hot zone (20px from edge).
-    private func handleGlobalDrag(at location: CGPoint) {
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(location, $0.frame, false) }) else {
-            disableAllEdgeWindows()
-            return
-        }
-        let hotZone = AppSettings.shared.edgeHotZoneWidth
-        let sf = screen.frame
-
-        var nearEdge: ScreenEdge? = nil
-        if location.x - sf.minX < hotZone  { nearEdge = .leading }
-        if sf.maxX - location.x < hotZone  { nearEdge = .trailing }
-        if location.y - sf.minY < hotZone  { nearEdge = .bottom }
-        if sf.maxY - location.y < hotZone  { nearEdge = .top }
-
-        for edge in ScreenEdge.allCases {
-            edgeWindows[edge]?.ignoresMouseEvents = (edge != nearEdge)
-        }
-    }
-
-    private func disableAllEdgeWindows() {
-        edgeWindows.values.forEach { $0.ignoresMouseEvents = true }
     }
 
     private func slideOutAllPanels() {

@@ -1,7 +1,7 @@
 import AppKit
 
 /// An invisible, always-on-top strip window parked at a screen edge.
-/// Normally click-through; becomes interactive when a drag approaches the edge.
+/// Always accepts NSDragging events; regular mouse clicks pass through via the clear background.
 final class EdgeTriggerWindow: NSWindow {
     let edge: ScreenEdge
     let targetScreen: NSScreen  // renamed: NSWindow already has `var screen: NSScreen?`
@@ -42,7 +42,7 @@ final class EdgeTriggerWindow: NSWindow {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        ignoresMouseEvents = true
+        ignoresMouseEvents = false  // must be false to receive NSDragging events
         isReleasedWhenClosed = false
         isRestorable = false  // never restore edge trigger windows across sessions
         // Must appear on all spaces including fullscreen apps
