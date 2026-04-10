@@ -20,10 +20,22 @@ final class EdgeTriggerWindow: NSWindow {
         configure()
     }
 
-    required init?(coder: NSCoder) {
-        self.edge = .leading           // placeholder; isRestorable=false prevents this path
+    // NSWindow's designated initializer must be overridden so Swift does not
+    // replace it with an _unimplementedInitializer stub.  AppKit may route
+    // through this path (e.g. during the coder init chain).
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask,
+                  backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        self.edge = .leading
         self.targetScreen = NSScreen.main ?? NSScreen.screens[0]
-        super.init(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        super.init(contentRect: contentRect, styleMask: style,
+                   backing: backingStoreType, defer: flag)
+    }
+
+    required init?(coder: NSCoder) {
+        self.edge = .leading
+        self.targetScreen = NSScreen.main ?? NSScreen.screens[0]
+        super.init(contentRect: .zero, styleMask: .borderless,
+                   backing: .buffered, defer: false)
     }
 
     private func configure() {

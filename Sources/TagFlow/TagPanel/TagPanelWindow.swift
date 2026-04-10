@@ -8,6 +8,23 @@ final class TagPanelWindow: NSWindow {
             backing: .buffered,
             defer: false
         )
+        configure()
+    }
+
+    // Override the designated initializer to prevent Swift from generating an
+    // _unimplementedInitializer stub that crashes when AppKit routes through it.
+    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask,
+                  backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: style,
+                   backing: backingStoreType, defer: flag)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(contentRect: .zero, styleMask: .borderless,
+                   backing: .buffered, defer: false)
+    }
+
+    private func configure() {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
@@ -15,9 +32,5 @@ final class TagPanelWindow: NSWindow {
         isReleasedWhenClosed = false
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         level = .floating
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
     }
 }
