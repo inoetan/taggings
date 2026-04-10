@@ -55,8 +55,7 @@ struct TagPanelView: View {
                             hoveredTagID = hovering ? tag.id : nil
                         }
                         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-                            coordinator.applyTag(tag, to: draggedURLs)
-                            coordinator.dragDidEnd(edge)
+                            handleDrop(tag: tag, providers: providers)
                             return true
                         }
                         .onTapGesture {
@@ -69,6 +68,71 @@ struct TagPanelView: View {
             .padding(.vertical, 4)
         }
         .frame(maxHeight: 400)
+    }
+
+    /// Extract file URLs from the drop providers, then apply the tag.
+    ///
+    /// Background: `draggingEntered` on the strip fires AFTER `mouseEntered`,
+    /// so the panel opens with `draggedURLs = []`. The actual dragged files
+    /// arrive here via the `NSItemProvider` array. We load them async and fall
+    /// back to `draggedURLs` only when providers yield nothing.
+    private func handleDrop(tag: Tag, providers: [NSItemProvider]) {
+        print("[Panel] handleDrop tag=\(tag.name) providers=\(providers.count) draggedURLs=\(draggedURLs.count)")
+
+        let capturedURLs = draggedURLs
+
+        guard !providers.isEmpty else {
+            // Tap-gesture path: providers is empty, use whatever was set when panel opened.
+            coordinator.applyTag(tag, to: capturedURLs)
+            coordinator.dragDidEnd(edge)
+            return
+        }
+
+        var loaded: [URL] = []
+        let lock = NSLock()
+        let group = DispatchGroup()
+
+        for provider in providers {
+            print("[Panel] provider UTIs: \(provider.registeredTypeIdentifiers)")
+            guard provider.hasItemConformingToTypeIdentifier("public.file-url") else { continue }
+            group.enter()
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, error in
+                defer { group.leave() }
+                if let error = error {
+                    print("[Panel] loadItem error: \(error)")
+                    return
+                }
+                let resolved: URL?
+                switch item {
+                case let url as URL:
+                    resolved = url
+                case let nsURL as NSURL:
+                    resolved = nsURL as URL
+                case let data as Data:
+                    resolved = URL(dataRepresentation: data, relativeTo: nil)
+                default:
+                    print("[Panel] unexpected item type: \(type(of: item))")
+                    resolved = nil
+                }
+                if let url = resolved {
+                    lock.lock()
+                    loaded.append(url)
+                    lock.unlock()
+                }
+            }
+        }
+
+        // Wait on a background thread so we don't block the main run loop.
+        // `loadItem` completion handlers run on a private queue (not main).
+        DispatchQueue.global(qos: .userInitiated).async {
+            group.wait()
+            print("[Panel] loaded \(loaded.count) URLs from providers, fallback draggedURLs=\(capturedURLs.count)")
+            let urlsToTag = loaded.isEmpty ? capturedURLs : loaded
+            DispatchQueue.main.async {
+                coordinator.applyTag(tag, to: urlsToTag)
+                coordinator.dragDidEnd(edge)
+            }
+        }
     }
 
     private var addTagSection: some View {
