@@ -8,7 +8,6 @@ struct TagPanelView: View {
     let coordinator: DragCoordinator
 
     @State private var hoveredTagID: UUID? = nil
-    @State private var dropTargetTagID: UUID? = nil
     @State private var newTagName: String = ""
     @State private var newTagColor: Tag.TagColor = .none
     @State private var isAddingTag = false
@@ -52,27 +51,18 @@ struct TagPanelView: View {
         ScrollView {
             VStack(spacing: 2) {
                 ForEach(tagStore.tags) { tag in
-                    TagRowView(tag: tag,
-                               isHovered: hoveredTagID == tag.id || dropTargetTagID == tag.id)
+                    TagRowView(tag: tag, isHovered: hoveredTagID == tag.id)
                         .onHover { hovering in
-                            hoveredTagID = hovering ? tag.id : nil
-                        }
-                        .onDrop(of: [.fileURL], isTargeted: Binding(
-                            get: { dropTargetTagID == tag.id },
-                            set: { active in
-                                // Defer the @State mutation so it doesn't happen
-                                // inside a SwiftUI view-update cycle, which causes
-                                // "Publishing changes from within view updates".
-                                let id = tag.id
-                                DispatchQueue.main.async {
-                                    if active {
-                                        dropTargetTagID = id
-                                    } else if dropTargetTagID == id {
-                                        dropTargetTagID = nil
-                                    }
-                                }
+                            // Defer @State write: the panel opens while a drag is
+                            // in progress, so onHover can fire during the initial
+                            // render cycle. A synchronous write causes
+                            // "Publishing changes from within view updates".
+                            let id = tag.id
+                            DispatchQueue.main.async {
+                                hoveredTagID = hovering ? id : nil
                             }
-                        )) { providers in
+                        }
+                        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                             handleDrop(tag: tag, providers: providers)
                             return true
                         }
