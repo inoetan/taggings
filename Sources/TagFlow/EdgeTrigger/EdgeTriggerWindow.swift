@@ -5,8 +5,13 @@ final class EdgeTriggerWindow: NSWindow {
     let edge: ScreenEdge
     let targetScreen: NSScreen
 
-    static let thickness: CGFloat = 16   // perpendicular to edge
-    static let length: CGFloat   = 200   // along the edge
+    /// Thickness of the VISIBLE strip (perpendicular to edge).
+    static let visualThickness: CGFloat = 16
+    /// Thickness of the ACTIVATION ZONE (window size perpendicular to edge).
+    /// Larger than the visual strip so dragging files is much easier to hit.
+    static let hitThickness: CGFloat = 48
+    /// Length of the pocket along the edge.
+    static let length: CGFloat = 200
 
     init(edge: ScreenEdge, screen: NSScreen, centerRatio: CGFloat = 0.5) {
         self.edge = edge
@@ -42,25 +47,26 @@ final class EdgeTriggerWindow: NSWindow {
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
     }
 
-    /// The pocket rect: a short strip flush with the given edge, centered at `centerRatio` (0…1).
+    /// The pocket rect: window extends `hitThickness` inward from the edge,
+    /// centered at `centerRatio` (0…1) along the edge.
     static func pocketRect(for edge: ScreenEdge, screen: NSScreen, centerRatio: CGFloat = 0.5) -> CGRect {
         let sf = screen.frame
         let vf = screen.visibleFrame
-        let t = thickness, l = length
+        let h = hitThickness, l = length
 
         switch edge {
         case .trailing:
             let cy = vf.minY + vf.height * centerRatio
-            return CGRect(x: sf.maxX - t, y: cy - l / 2, width: t, height: l)
+            return CGRect(x: sf.maxX - h, y: cy - l / 2, width: h, height: l)
         case .leading:
             let cy = vf.minY + vf.height * centerRatio
-            return CGRect(x: sf.minX, y: cy - l / 2, width: t, height: l)
+            return CGRect(x: sf.minX, y: cy - l / 2, width: h, height: l)
         case .top:
             let cx = sf.minX + sf.width * centerRatio
-            return CGRect(x: cx - l / 2, y: vf.maxY - t, width: l, height: t)
+            return CGRect(x: cx - l / 2, y: vf.maxY - h, width: l, height: h)
         case .bottom:
             let cx = sf.minX + sf.width * centerRatio
-            return CGRect(x: cx - l / 2, y: sf.minY, width: l, height: t)
+            return CGRect(x: cx - l / 2, y: sf.minY, width: l, height: h)
         }
     }
 }

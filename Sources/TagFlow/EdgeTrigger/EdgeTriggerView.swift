@@ -40,7 +40,8 @@ final class EdgeTriggerView: NSView {
         registerForDraggedTypes([.fileURL])
         wantsLayer = true
 
-        // Visual effect background — same material as TagPanelView
+        // Visual effect background — only fills the visible strip portion (visualThickness),
+        // flush with the screen edge. The surrounding activation-zone area is transparent.
         let vfv = NSVisualEffectView()
         vfv.material = .hudWindow
         vfv.blendingMode = .behindWindow
@@ -49,14 +50,42 @@ final class EdgeTriggerView: NSView {
         vfv.layer?.cornerRadius = 6
         vfv.translatesAutoresizingMaskIntoConstraints = false
         addSubview(vfv)
-        NSLayoutConstraint.activate([
-            vfv.leadingAnchor.constraint(equalTo: leadingAnchor),
-            vfv.trailingAnchor.constraint(equalTo: trailingAnchor),
-            vfv.topAnchor.constraint(equalTo: topAnchor),
-            vfv.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
 
-        // Grip dots
+        let t = EdgeTriggerWindow.visualThickness
+        let vfvConstraints: [NSLayoutConstraint]
+        switch edge {
+        case .trailing:
+            vfvConstraints = [
+                vfv.trailingAnchor.constraint(equalTo: trailingAnchor),
+                vfv.topAnchor.constraint(equalTo: topAnchor),
+                vfv.bottomAnchor.constraint(equalTo: bottomAnchor),
+                vfv.widthAnchor.constraint(equalToConstant: t),
+            ]
+        case .leading:
+            vfvConstraints = [
+                vfv.leadingAnchor.constraint(equalTo: leadingAnchor),
+                vfv.topAnchor.constraint(equalTo: topAnchor),
+                vfv.bottomAnchor.constraint(equalTo: bottomAnchor),
+                vfv.widthAnchor.constraint(equalToConstant: t),
+            ]
+        case .top:
+            vfvConstraints = [
+                vfv.topAnchor.constraint(equalTo: topAnchor),
+                vfv.leadingAnchor.constraint(equalTo: leadingAnchor),
+                vfv.trailingAnchor.constraint(equalTo: trailingAnchor),
+                vfv.heightAnchor.constraint(equalToConstant: t),
+            ]
+        case .bottom:
+            vfvConstraints = [
+                vfv.bottomAnchor.constraint(equalTo: bottomAnchor),
+                vfv.leadingAnchor.constraint(equalTo: leadingAnchor),
+                vfv.trailingAnchor.constraint(equalTo: trailingAnchor),
+                vfv.heightAnchor.constraint(equalToConstant: t),
+            ]
+        }
+        NSLayoutConstraint.activate(vfvConstraints)
+
+        // Grip dots — centered inside the visual strip
         let grip = GripDotsView(isVertical: edge == .leading || edge == .trailing)
         grip.translatesAutoresizingMaskIntoConstraints = false
         vfv.addSubview(grip)
@@ -84,7 +113,7 @@ final class EdgeTriggerView: NSView {
     override func mouseEntered(with event: NSEvent) {
         guard !isRepositioning else { return }
         print("[EdgeTrigger] mouseEntered edge=\(edge)")
-        coordinator?.dragDidEnterEdge(edge, urls: [], stripFrame: window?.frame)
+        coordinator?.dragDidEnterEdge(edge, urls: [], stripFrame: visualStripFrame())
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -160,7 +189,7 @@ final class EdgeTriggerView: NSView {
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let urls = fileURLs(from: sender), !urls.isEmpty else { return [] }
         print("[EdgeTrigger] draggingEntered edge=\(edge) urls=\(urls.count)")
-        coordinator?.dragDidEnterEdge(edge, urls: urls, stripFrame: window?.frame)
+        coordinator?.dragDidEnterEdge(edge, urls: urls, stripFrame: visualStripFrame())
         return .link
     }
 
@@ -190,6 +219,22 @@ final class EdgeTriggerView: NSView {
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL]
+    }
+
+    // MARK: - Helpers
+
+    /// Returns the frame of the VISIBLE 16px strip only (not the full activation-zone window).
+    /// Used as the origin frame for the panel slide-in animation.
+    private func visualStripFrame() -> NSRect? {
+        guard let win = window else { return nil }
+        let wf = win.frame
+        let t = EdgeTriggerWindow.visualThickness
+        switch edge {
+        case .trailing:  return NSRect(x: wf.maxX - t, y: wf.minY, width: t, height: wf.height)
+        case .leading:   return NSRect(x: wf.minX,     y: wf.minY, width: t, height: wf.height)
+        case .top:       return NSRect(x: wf.minX, y: wf.maxY - t, width: wf.width, height: t)
+        case .bottom:    return NSRect(x: wf.minX,     y: wf.minY, width: wf.width, height: t)
+        }
     }
 }
 

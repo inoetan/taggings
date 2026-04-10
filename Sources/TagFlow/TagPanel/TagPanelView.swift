@@ -8,6 +8,7 @@ struct TagPanelView: View {
     let coordinator: DragCoordinator
 
     @State private var hoveredTagID: UUID? = nil
+    @State private var dropTargetTagID: UUID? = nil
     @State private var newTagName: String = ""
     @State private var isAddingTag = false
 
@@ -50,11 +51,21 @@ struct TagPanelView: View {
         ScrollView {
             VStack(spacing: 2) {
                 ForEach(tagStore.tags) { tag in
-                    TagRowView(tag: tag, isHovered: hoveredTagID == tag.id)
+                    TagRowView(tag: tag,
+                               isHovered: hoveredTagID == tag.id || dropTargetTagID == tag.id)
                         .onHover { hovering in
                             hoveredTagID = hovering ? tag.id : nil
                         }
-                        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                        .onDrop(of: [.fileURL], isTargeted: Binding(
+                            get: { dropTargetTagID == tag.id },
+                            set: { active in
+                                if active {
+                                    dropTargetTagID = tag.id
+                                } else if dropTargetTagID == tag.id {
+                                    dropTargetTagID = nil
+                                }
+                            }
+                        )) { providers in
                             handleDrop(tag: tag, providers: providers)
                             return true
                         }
