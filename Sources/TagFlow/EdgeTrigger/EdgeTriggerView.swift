@@ -161,8 +161,20 @@ final class EdgeTriggerView: NSView {
         return .link
     }
 
-    override func draggingExited(_ sender: NSDraggingInfo?) { coordinator?.dragDidEnd(edge) }
-    override func draggingEnded(_ sender: NSDraggingInfo)   { coordinator?.dragDidEnd(edge) }
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        // Don't close when the file drag moves from the strip into the panel —
+        // the user still needs to drop onto a tag.
+        let loc = NSEvent.mouseLocation
+        if let frame = coordinator?.panelFrame, NSMouseInRect(loc, frame, false) { return }
+        coordinator?.dragDidEnd(edge)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        // Fired when the drag session ends (drop or cancel).
+        // If dropped on a tag in the panel, TagPanelView already called dragDidEnd.
+        // Call it here as a fallback for cancel or drop outside the panel.
+        coordinator?.dragDidEnd(edge)
+    }
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool { false }
 
     private func fileURLs(from info: NSDraggingInfo) -> [URL]? {

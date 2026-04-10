@@ -31,8 +31,9 @@ final class DragCoordinator {
     // MARK: - Events from EdgeTriggerView
 
     func dragDidEnterEdge(_ edge: ScreenEdge, urls: [URL], stripFrame: NSRect? = nil) {
-        // Fade the strip out while panel is showing
-        stripWindow?.ignoresMouseEvents = true
+        // Fade the strip out while panel is showing.
+        // Do NOT set ignoresMouseEvents — the drag system must still be able
+        // to deliver draggingExited to the strip so we know when to close.
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.15
             stripWindow?.animator().alphaValue = 0
@@ -42,7 +43,6 @@ final class DragCoordinator {
 
     func dragDidEnd(_ edge: ScreenEdge) {
         panelController?.slideOut { [weak self] in
-            self?.stripWindow?.ignoresMouseEvents = false
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.15
                 self?.stripWindow?.animator().alphaValue = 1
