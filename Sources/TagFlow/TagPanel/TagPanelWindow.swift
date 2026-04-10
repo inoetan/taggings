@@ -18,6 +18,6 @@ final class TagPanelWindow: NSWindow {
     }
 
     required init?(coder: NSCoder) {
-        super.init(coder: coder)
+        super.init(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
     }
 }
