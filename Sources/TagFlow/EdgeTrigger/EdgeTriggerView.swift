@@ -1,7 +1,7 @@
 import AppKit
 
 /// The content view of EdgeTriggerWindow.
-/// Implements NSDraggingDestination to receive file drops.
+/// Shows a visible strip for debugging. Slides in the tag panel on mouse hover.
 final class EdgeTriggerView: NSView {
     weak var coordinator: DragCoordinator?
     private let edge: ScreenEdge
@@ -13,9 +13,50 @@ final class EdgeTriggerView: NSView {
     }
 
     required init?(coder: NSCoder) {
-        self.edge = .leading  // fallback; this path is never used (no NIB)
+        self.edge = .leading
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
+    }
+
+    // MARK: - Drawing (debug: visible strip)
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.systemBlue.withAlphaComponent(0.45).setFill()
+        bounds.fill()
+
+        // Draw a left-pointing arrow to indicate "drag here"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 20, weight: .bold),
+            .foregroundColor: NSColor.white
+        ]
+        let symbol = "◀"
+        let size = (symbol as NSString).size(withAttributes: attrs)
+        let x = (bounds.width - size.width) / 2
+        let y = (bounds.height - size.height) / 2
+        (symbol as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: attrs)
+    }
+
+    // MARK: - Hover (mouse-over slide in for debug)
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        print("[EdgeTrigger] mouseEntered edge=\(edge)")
+        coordinator?.dragDidEnterEdge(edge, urls: [])
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        print("[EdgeTrigger] mouseExited edge=\(edge)")
+        coordinator?.dragDidEnd(edge)
     }
 
     // MARK: - NSDraggingDestination
@@ -33,14 +74,13 @@ final class EdgeTriggerView: NSView {
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
-        coordinator?.dragDidExitEdge(edge)
+        coordinator?.dragDidEnd(edge)
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
         coordinator?.dragDidEnd(edge)
     }
 
-    // NSDraggingDestination: we don't handle the drop here — the tag panel does
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         return false
     }

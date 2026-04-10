@@ -48,7 +48,9 @@ final class EdgeTriggerManager {
     }
 
     private func buildWindows(for screen: NSScreen) {
-        for edge in ScreenEdge.allCases {
+        // DEBUG: limit to trailing edge only for initial testing
+        let activeEdges: [ScreenEdge] = [.trailing]
+        for edge in activeEdges {
             let edgeWin = EdgeTriggerWindow(edge: edge, screen: screen)
             let edgeView = EdgeTriggerView(edge: edge)
             edgeView.coordinator = coordinator
