@@ -1,6 +1,17 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Sort option
+
+private enum SortOption: String, CaseIterable, Identifiable {
+    case nameAscending  = "名前"
+    case dateDescending = "更新日"
+    case kindAscending  = "種類"
+    var id: Self { self }
+}
+
+// MARK: - Main view
+
 struct TagFileGridView: View {
     let tag: Tag
     @StateObject private var queryService = MetadataQueryService()
@@ -9,8 +20,32 @@ struct TagFileGridView: View {
     @State private var isListView = false
     /// URLs of currently selected files (URL == TaggedFile.id).
     @State private var selectedFileIDs: Set<URL> = []
+    /// Last item tapped without Shift — anchor for range selection.
+    @State private var selectionAnchorID: URL? = nil
+    @State private var sortOption: SortOption = .nameAscending
 
     private let columns = [GridItem(.adaptive(minimum: 80, maximum: 100))]
+
+    // MARK: - Sorted files
+
+    private var sortedFiles: [TaggedFile] {
+        switch sortOption {
+        case .nameAscending:
+            return files.sorted {
+                $0.displayName.localizedCompare($1.displayName) == .orderedAscending
+            }
+        case .dateDescending:
+            return files.sorted {
+                ($0.modificationDate ?? .distantPast) > ($1.modificationDate ?? .distantPast)
+            }
+        case .kindAscending:
+            return files.sorted {
+                $0.url.pathExtension.localizedCompare($1.url.pathExtension) == .orderedAscending
+            }
+        }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         Group {
@@ -41,6 +76,18 @@ struct TagFileGridView: View {
 
                 Divider()
 
+                // Sort picker
+                Picker("並び順", selection: $sortOption) {
+                    ForEach(SortOption.allCases) { opt in
+                        Text(opt.rawValue).tag(opt)
+                    }
+                }
+                .pickerStyle(.menu)
+                .help("並び順")
+                .frame(width: 88)
+
+                Divider()
+
                 // Grid / list toggle
                 Picker("表示切替", selection: $isListView) {
                     Image(systemName: "square.grid.2x2").tag(false)
@@ -55,9 +102,28 @@ struct TagFileGridView: View {
                 .help("更新")
             }
         }
+        // Hidden ⌘+A button for "select all" — mirrors Finder
+        .background(
+            Button("") {
+                selectedFileIDs = Set(sortedFiles.map { $0.url })
+                selectionAnchorID = sortedFiles.last?.url
+            }
+            .keyboardShortcut("a", modifiers: .command)
+            .hidden()
+        )
+        // Escape clears selection — mirrors Finder
+        .onExitCommand { selectedFileIDs.removeAll(); selectionAnchorID = nil }
         .onAppear { startQuery() }
         .onDisappear { queryService.stopQuery() }
-        .onChange(of: tag.id) { _ in selectedFileIDs.removeAll(); startQuery() }
+        .onChange(of: tag.id) { _ in
+            selectedFileIDs.removeAll()
+            selectionAnchorID = nil
+            startQuery()
+        }
+        .onChange(of: sortOption) { _ in
+            // Anchor index may have shifted after re-sort; clear to avoid wrong range.
+            selectionAnchorID = nil
+        }
     }
 
     // MARK: - Grid view
@@ -65,15 +131,15 @@ struct TagFileGridView: View {
     private var fileGrid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(files) { file in
+                ForEach(sortedFiles) { file in
                     FileGridCell(file: file, isSelected: selectedFileIDs.contains(file.url))
-                        .onTapGesture {
-                            // Toggle selection
-                            if selectedFileIDs.contains(file.url) {
-                                selectedFileIDs.remove(file.url)
-                            } else {
-                                selectedFileIDs.insert(file.url)
-                            }
+                        // Double-click: open with default app — same as Finder
+                        .onTapGesture(count: 2) {
+                            NSWorkspace.shared.open(file.url)
+                        }
+                        // Single-click: Finder-style selection with modifier support
+                        .onTapGesture(count: 1) {
+                            handleGridTap(file: file)
                         }
                         .onDrag {
                             NSItemProvider(object: file.url as NSURL)
@@ -91,14 +157,59 @@ struct TagFileGridView: View {
                 }
             }
             .padding()
+            // Tapping empty space between cells deselects all.
+            // File cells intercept taps at their own hit-target first, so this
+            // background handler fires only for taps on empty areas.
+            .background(
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedFileIDs.removeAll()
+                        selectionAnchorID = nil
+                    }
+            )
+        }
+    }
+
+    // MARK: - Grid selection (Finder semantics)
+
+    private func handleGridTap(file: TaggedFile) {
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) {
+            // ⌘+click: toggle item in/out of selection
+            if selectedFileIDs.contains(file.url) {
+                selectedFileIDs.remove(file.url)
+            } else {
+                selectedFileIDs.insert(file.url)
+            }
+            selectionAnchorID = file.url
+        } else if flags.contains(.shift),
+                  let anchor = selectionAnchorID,
+                  let ai = sortedFiles.firstIndex(where: { $0.url == anchor }),
+                  let ci = sortedFiles.firstIndex(where: { $0.url == file.url }) {
+            // Shift+click: extend selection from anchor to this item
+            let lo = min(ai, ci), hi = max(ai, ci)
+            selectedFileIDs = Set(sortedFiles[lo...hi].map { $0.url })
+            // Anchor stays fixed — mirrors Finder range-select behavior
+        } else {
+            // Plain click: select only this item, deselect everything else
+            selectedFileIDs = [file.url]
+            selectionAnchorID = file.url
         }
     }
 
     // MARK: - List view
 
     private var fileList: some View {
-        List(files, selection: $selectedFileIDs) { file in
+        List(sortedFiles, selection: $selectedFileIDs) { file in
             FileListRow(file: file)
+                // Double-click to open; simultaneousGesture lets List's native
+                // single-click selection continue to work normally.
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        NSWorkspace.shared.open(file.url)
+                    }
+                )
                 .onDrag {
                     NSItemProvider(object: file.url as NSURL)
                 }
@@ -128,6 +239,7 @@ struct TagFileGridView: View {
             try? XattrService.removeTag(tag, from: url)
         }
         selectedFileIDs.removeAll()
+        selectionAnchorID = nil
         startQuery()
     }
 
